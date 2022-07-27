@@ -11,6 +11,7 @@ def read_residence(resident):
     Returns only the occurences.
     """
     
+    
     def resider(val=1):
         """"
         Measures the time of staying bound.
@@ -20,10 +21,12 @@ def read_residence(resident):
         
         for res in resident: #for each row or the binding molecule
             time = 0 #set occurence time to zero
+            if np.sum(res) == 0:
+                continue
             for r in res: #binding status 0 or 1,2
                 if r:
                     time+=1
-                elif r==0: #when the binding status is not satisfied anymore, binding duration is saved and time reset to 0
+                elif r==0 and time>0: #when the binding status is not satisfied anymore, binding duration is saved and time reset to 0
                     res_time.append(time)
                     time = 0
         return np.array(res_time)   
@@ -41,7 +44,6 @@ def read_residence(resident):
     
         distribution[i,1] = np.count_nonzero(bound == distribution[i,0]) #how many occurences for occurences observed for each duration
 
-    
     return distribution[:,1].copy()
 
 def find_npz():
@@ -54,10 +56,10 @@ def find_npz():
     for dirpath, dirnames, filenames in os.walk("."):
         for filename in [f for f in filenames if f.endswith('npz')]:
             file_list.append(os.path.join(dirpath))     
-        
+    
     return file_list
         
-def retrieve_sub_array(sub_arr='fl_nap'):
+def retrieve_sub_array(sub_arr):
 
     """
     Retrieves given sub arrays of .npz files. 
@@ -65,15 +67,13 @@ def retrieve_sub_array(sub_arr='fl_nap'):
     Returns the grandparent directories.
     """
         
+    print(sub_arr)
     flies = find_npz()
     locations = []
     cwd = os.getcwd()
-    for f in flies:
-        
+    for i,f in enumerate(flies):
         os.chdir(f)
-    
         state = np.load('states.npz')[sub_arr]
-        #mol_num, time_num = len(state),len(state[0])
         dist = read_residence(state)
         dist = np.where(dist == 0, np.nan, dist) #zeros removed
         
@@ -93,7 +93,7 @@ def retrieve_sub_array(sub_arr='fl_nap'):
         os.chdir(save_loc)
         
         np.save(arr_name, dist)
-        print(f'{arr_name} saved to {save_loc}')
+        print(f'{i+1} of {len(flies)}',end='\r')
         os.chdir(cwd)
     
     return locations
@@ -107,8 +107,10 @@ def unite_arrays(locations):
     obtained from file names.
     Returns the dataframe
     """
+
+    
     cwd = os.getcwd()
-    for l in locations:
+    for i,l in enumerate(locations):
         os.chdir(l)
         
         arr_list = glob.glob('*.npy')
@@ -137,13 +139,11 @@ def unite_arrays(locations):
             cases.append(case)
             cases = list(set(cases))
         
-        
         df = pd.DataFrame(total,columns = titles)
         
         df_name = parts[0]+parts[1]+parts[-3]+'_df.csv'
-        df.to_csv(df_name)
-        print(f'Saved {df_name} to {l}.... Arrays deleted')
-
+        df.to_csv(df_name,index=False)
+        print(f'Saved {i+1} of {len(locations)}.... 1d Arrays deleted')
         
         os.chdir(cwd)
     
@@ -152,6 +152,12 @@ def unite_arrays(locations):
 if __name__ == '__main__':
     
     
-    locations = retrieve_sub_array('fl_nap')
-    locations = list(set(locations))
-    unite_arrays(locations)
+    path = os.path.join(find_npz()[0],'states.npz')#using the first file
+    sample = np.load(path)#to get all the sub array names, 
+    
+    #every sub array retrived and dataframed into relevant csv files
+    for i,s in enumerate(sample):
+        print(f'{i+1} of {len(sample)}',end=' ')
+        locations = retrieve_sub_array(s)
+        locations = list(set(locations))
+        unite_arrays(locations)
