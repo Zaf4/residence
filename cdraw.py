@@ -166,7 +166,7 @@ def draw_cluster(fname):
 
 if __name__ == '__main__':
     
-    #findin all the files with the given extension
+    #finding all the files with the given extension
     file_list = glob.glob('*.extra')
 
     for i,f in enumerate(file_list):
