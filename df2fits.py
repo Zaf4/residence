@@ -151,7 +151,7 @@ def fitNshow(fname,savefits=True,savefigs=False,showfits=True,keyword=60):
     #figure part
     if savefigs == True:
         
-        sns.set(rc = {'figure.figsize':(8,12)})
+        sns.set(rc = {'figure.figsize':(8,10)})
         sns.set_style("white")
 
         col2draw = [c for c in values.columns if keyword in c] 
