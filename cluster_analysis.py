@@ -7,6 +7,7 @@ import glob
 import os
 import imageio
 from moviepy.editor import *
+import time
 
 #clustering algorithm
 def find_cluster(atoms:np.ndarray,threshold:float=2.1,
@@ -165,14 +166,14 @@ def frameit_self(arr_name:str)->None:
     for i,frame in enumerate(frames):
         ss = cluster_single_frame(frame)
         ax = imagify(ss)
-        plt.savefig(f'{i}',dpi=100)
+        plt.savefig(f'{i}',dpi=100,transparent=True)
         print(f'{i} of {len(frames)}   ', end='\r')
     plt.close('all')
     os.chdir('..')
     return
 
 
-def frameit_last(arr_name:str)->None:
+def frameit_index(arr_name:str,index:int=-1,skip:int=0)->None:
     """
     Create image for the given Frame based on the latest cluster formations.
     Allows the tracking of movements that formed the clusters and latest frame.
@@ -189,7 +190,10 @@ def frameit_last(arr_name:str)->None:
 
     """
     frames = np.load(arr_name)
-    cluster_index = cluster_single_frame(frames[-1]).cluster
+    cluster_index = cluster_single_frame(frames[index]).cluster
+    if skip:
+        frames = frames[::skip]
+
     
     if not os.path.isdir('images'):
         os.mkdir('images')
@@ -200,8 +204,8 @@ def frameit_last(arr_name:str)->None:
         #adding cluster indexes of the last instance to the dataframe
         ss['cluster'] = cluster_index
         ax = imagify(ss)
-        plt.savefig(f'{i}',dpi=100)
-        print(f'{i} of {len(dump)}   ', end='\r')
+        plt.savefig(f'{i}',dpi=100,transparent=True)
+        print(f'{i} of {len(frames)}   ', end='\r')
     plt.close('all')
     os.chdir('..')
 
@@ -254,17 +258,87 @@ def movieit(movie_name:str='clusters'):
     
     return
 
+def cluster_table(frame:np.ndarray)->dict:
+    ss = cluster_single_frame(frame,min_size = 12)
+    n_cluster = int(ss.cluster.max())
 
+    liste = []
+    for index in range(1,n_cluster+1):
+        cluster_sub_df = ss[ss.cluster == index]
+        coor = np.array(cluster_sub_df[['xco','yco','zco']])
+        average = np.average(coor,axis=0)#to center the cluster
+        coor_norm = np.subtract(coor,average)#cluster centerd
+        std_xyz = np.std(coor_norm,axis=0)#
+        rg_xyz = np.average(coor_norm**2,axis=0)
+        rg_std = np.std(rg_xyz)
+        rg_avg = np.average(rg_xyz)
+        rg_min = np.min(rg_xyz)
+        rg_max = np.max(rg_xyz)
+        mm_avg = (rg_max+rg_min)/2
+        
+        shape = 'globular'
+        if rg_max>rg_min+mm_avg:
+            shape = 'filamentous'
+        
+        values = [
+            index,
+            shape,
+            average[0],
+            average[1],
+            average[2],
+            int(len(cluster_sub_df)/3),
+            std_xyz[0],
+            std_xyz[1],
+            std_xyz[2],
+            np.sum(rg_xyz),
+            rg_xyz[0],
+            rg_xyz[1],
+            rg_xyz[2],
+            rg_avg,
+            ]
+        
+        liste.append(values)
+        
+    col_names = ['id',
+                 'conformation',
+                 'x',
+                 'y',
+                 'z',
+                 'size', 
+                 'std_x',
+                 'std_y',
+                 'std_z',
+                 'Rg',
+                 'Rgx',
+                 'Rgy',
+                 'Rgz',
+                 'Rg_avg']
+    cluster_frame = pd.DataFrame(data=liste,columns = col_names)
+    return cluster_frame
 
+    
 if __name__ == '__main__':
     # os.chdir('C:\\Users\\zaf4-PC\\Desktop\\temporary\\clusan')
     # #frameit_last()
     # os.chdir('gif')
     # movieit()
+    # start = time.time()
+    frame1 = np.load('small_350_60.npy')[-1]
+    ss = cluster_single_frame(frame1)
     
-    frame = np.load('small.npy')[-20]
-    ss = cluster_single_frame(frame,min_size = 12)
-    image = imagify(ss,palette='viridis')
+    ax = imagify(ss)
+    table = cluster_table(frame1)
+    
+    for i in table.index:
+        label =f'{i+1}\n{table.conformation[i][:3]}'
+        plt.text(x=table.x[i]+3, y=table.y[i]+3,
+                 s=label,backgroundcolor='red')
+    
+    plt.savefig('cluster_classification_350.png', dpi=100)
+
+
+
+    # print(f'{time.time()-start:.2f} seconds')
     
     
     
