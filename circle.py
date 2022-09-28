@@ -2,7 +2,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import math
 
 
 
@@ -81,28 +80,34 @@ def makesphere(r:float,step:int=100)->pd.DataFrame:
     
     return coor
 
-# coor = makesphere(r=10,step=200)
-# sphere = np.array(coor)
-# blo = np.random.rand(2000,3)*10-5
-# blob = pd.DataFrame(blo,columns= ['x','y','z'])
-# blo_type = np.zeros(len(blo))
-# closest = np.zeros(len(sphere))
-
-# for i,s in enumerate(sphere):
-#     dist_sqr = np.sum((blo-s)**2,axis=1)#xyz(all)-xyz[i]
-#     # dist = np.sqrt(dist_sqr)
-#     index_min = np.argmin(dist_sqr)
-#     closest[i] = index_min
-
-# unique_close = np.unique(closest)
-# blo_type[unique_close.astype(int)] = 1
-# blob['surface'] = blo_type
-
 
 def marksurface(arr:np.ndarray)->pd.DataFrame:
+    """
+    Marks surface atoms of XYZ np.ndarray into a dataframe.
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        XYZ coordinates of the particles.
+
+    Returns
+    -------
+    blob : pd.DataFrame
+        DataFrame with particles marked as 0 for core 1 for surface in as an
+        additional column.
+
+    """
     
-    r_max = np.sqrt(np.max(np.sum(arr**2,axis=1)))+1 # max of r_sqr is sqrt'ed 
-    sphere = np.array(makesphere(r_max,step=int(r_max*10)))
+    r_max = np.sqrt(np.max(np.sum(arr**2,axis=1)))+1 # max of r_sqr is sqrt'ed
+    size = len(arr)
+    size_sqr = np.square(size)
+    
+    step = np.ceil(np.sqrt(size))
+    if r_max>size_sqr:
+        step = np.ceil(np.sqrt(size))*3
+        
+    
+    sphere = np.array(makesphere(r_max,step=step))
     print(f'{len(sphere):.1f}',end='\t')
     blob = pd.DataFrame(arr,columns= ['x','y','z'])
     blo_type = np.zeros(len(arr))#type is surface or not surface (1 or 0)
@@ -120,28 +125,19 @@ def marksurface(arr:np.ndarray)->pd.DataFrame:
     
     return blob
 
-n = 10
-vs = np.zeros([2,200])
-for j in range(1,201):
-    sizeb = 20*j
-    blo = np.random.rand(sizeb,3)*n*2-n
-    print(f'-----{j}-----')
 
-    blob = marksurface(blo)
-    surf = blob[blob.surface==1]
-    # print(f'surface particles:{len(surf)} surface/total:{len(surf)/len(blob)}')
-    core = blob[blob.surface==0]
 
-    vs[0,j-1] = sizeb
-    vs[1,j-1] = len(surf)/len(blob)
     
-sns.scatterplot(x=vs[0], y=vs[1])
-    # fig = plt.figure(figsize=(7,7))
-    # ax = plt.axes(projection='3d')
-    # ax.scatter(core.x,core.y,core.z,
-    #            marker='o',alpha=1,
-    #            color='grey')
-    
-    # ax.scatter(surf.x,surf.y,surf.z,
-    #            marker='o',alpha=1,
-    #            color='green')
+
+# fig = plt.figure(figsize=(9,9))
+# ax = plt.axes(projection='3d')
+# ax.scatter(core.x,core.y,core.z,
+#             marker='o',alpha=0.6,
+#             color='grey')
+
+# ax.scatter(surf.x,surf.y,surf.z,
+#             marker='o',alpha=1,
+#             color='green')
+
+
+# # sns.scatterplot(data=blob,x='x',y='y',hue='surface',size='z',palette='magma')
