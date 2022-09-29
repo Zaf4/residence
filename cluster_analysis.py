@@ -393,26 +393,168 @@ def labeledGraph(arr_name:str,index:int=-1,savepng:bool=False)->plt.Axes:
         plt.text(x=table.x[i]+3, y=table.y[i]+3,
                  s=label,backgroundcolor='red')
     
-    plt.savefig(f'{arr_name[:-4]}.png', dpi=100)
+    plt.savefig(f'{arr_name[:-4]}.png',dpi=400)
     
     return ax
 
+
+def makecircle(r:float=1, rotate:float=0, step:int=100)->pd.DataFrame:
+    """
+
+    Parameters
+    ----------
+    r : float, optional
+        Radius of the circle. The default is 1.
+    rotate : float, optional
+        Radian angle to rotate the circle. The default is 0.
+    step : int, optional
+        Number of point in the circle. The default is 100.
+
+    Returns
+    -------
+    coor : pd.DataFrame
+        DataFrame with XYZ coordinates of the circle.
+
+    """
+    
+    incre = (2*np.pi/step) #incrementation for desired steps
+    angles =  np.arange(-np.pi,np.pi,incre)#len(angles) == step
+    #initializing the array
+    xco = np.zeros(len(angles))
+    yco = np.zeros(len(angles))
+    zco = np.zeros(len(angles))
+    
+    #for every angle a point (or particle) is created
+    for i,a in enumerate(angles):
+        xco[i] = r*np.cos(a)*np.sin(rotate)
+        yco[i] = r*np.sin(a)*np.sin(rotate)
+        zco[i] = r*np.cos(rotate)
+        
+    coor = pd.DataFrame()#empty DataFrame
+    #coordinates are assigned as columns
+    coor['x'] = xco
+    coor['y'] = yco
+    coor['z'] = zco
+    
+    return coor
+
+def makesphere(r:float,step:int=100)->pd.DataFrame:
+    """
+
+    Parameters
+    ----------
+    r : float, optional
+        Radius of the circles -> sphere. The default is 1.
+
+    step : int, optional
+        Number of circles in the sphere. The default is 100.
+
+    Returns
+    -------
+    coor : pd.DataFrame
+        DataFrame with XYZ coordinates of the sphere.
+
+    """
+    incre = (2*np.pi/step) #incrementation for desired steps
+    coor = makecircle(r,rotate=np.pi,step=step)
+    
+    circle_size = len(coor)#reference size of circle
+    angles =  np.arange(-np.pi,np.pi,incre)
+    sphere_size = circle_size*len(angles)
+    
+    sphere = np.zeros([sphere_size,3])#sphere array allocated
+    
+    #for every angle a circle is created
+    for i,a in enumerate(angles):
+        values = makecircle(r,rotate=a,step=step)
+        sphere[i*circle_size:(i+1)*circle_size] = np.array(values) 
+    
+    coor = pd.DataFrame(sphere,columns= ['x','y','z'])#DataFrame formed
+    
+    return coor
+
+
+def marksurface(arr:np.ndarray)->pd.DataFrame:
+    """
+    Marks surface atoms of XYZ np.ndarray into a dataframe.
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        XYZ coordinates of the particles.
+
+    Returns
+    -------
+    blob : pd.DataFrame
+        DataFrame with particles marked as 0 for core 1 for surface in as an
+        additional column.
+
+    """
+    
+    r_max = np.ceil(np.sqrt(np.max(np.sum(arr**2,axis=1)))) # max of r_sqr is sqrt'ed
+    size = len(arr)
+    size_sqrt = np.sqrt(size)
+    
+    step = np.ceil(size_sqrt)*4
+    if r_max>size_sqrt:
+        step = np.ceil(np.sqrt(size))*5
+        
+    
+    sphere = np.array(makesphere(r_max,step=step))
+    print(len(sphere))
+    # print(f'{len(sphere):.1f}',end='\t')
+    blob = pd.DataFrame(arr,columns= ['x','y','z'])
+    blo_type = np.zeros(len(arr))#type is surface or not surface (1 or 0)
+    closest = np.zeros(len(sphere))#to store closest partcl. for each sp. point 
+    
+    for i,s in enumerate(sphere):
+        dist_sqr = np.sum((arr-s)**2,axis=1)#xyz(all)-xyz[i]
+        # dist = np.sqrt(dist_sqr)
+        index_min = np.argmin(dist_sqr)
+        closest[i] = index_min
+        
+    unique_close = np.unique(closest)
+    blo_type[unique_close.astype(int)] = 1
+    blob['surface'] = blo_type
+    
+    return blob
+
     
 if __name__ == '__main__':
+    """
     # os.chdir('C:\\Users\\zaf4-PC\\Desktop\\temporary\\clusan')
     start = time.time()
-    
-    frameit_index('small_280_60.npy',skip=1)
-    os.chdir('images_index')
-    movieit()
-    os.chdir('..')
-
-
     print(f'{time.time()-start:.2f} seconds')
+    """
+    
+    frame = cluster_single_frame(np.load('small_280_60.npy')[-1])
+    clusters = frame[frame.cluster>0]
+    maxC = clusters.cluster.max()
+    
+    for i in range(16,int(maxC)):
+        # cl = clusters[(clusters.cluster==i+1) & (clusters.type==5)]
+        cl = clusters[(clusters.cluster==i+1) ]
     
     
+        xyz = np.array(cl[['xco','yco','zco']])
+        
+        avg_xyz = np.average(xyz,axis=0)
+        xyz_norm = xyz-avg_xyz
+        
+        cl = marksurface(xyz_norm)
     
+    print(len(cl[cl.surface==1]))
+    ax = plt.figure()
+    matplotlib.use('agg')
+    sns.set(rc = {'figure.figsize':(14,7)})
+    sns.set_style(style = 'white')
+    sns.scatterplot(data = cl, x= 'x',y='y',
+                palette='bright',hue='surface',
+                size='z'
+                )
+    plt.grid(False)
     
-    
-    
-    
+    plt.xlim([-5,5])
+    plt.ylim([-5,5])
+
+        
