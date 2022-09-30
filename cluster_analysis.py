@@ -102,7 +102,7 @@ def imagify(frame:pd.DataFrame,palette:str='viridis')->plt.Axes:
     sns.set(rc = {'figure.figsize':(14,7)})
     sns.set_style(style = 'white')
     sns.scatterplot(data=frame[frame.cluster>0], 
-                    x = 'xco',y = 'yco',
+                    x = 'x',y = 'y',
                     hue='cluster',
                     palette=palette,
                     legend=None)
@@ -132,7 +132,7 @@ def cluster_single_frame(frame:np.ndarray,min_size:int=12,
 
     """
 
-    col_names = ['type','xco','yco','zco']
+    col_names = ['type','x','y','z']
     ss = pd.DataFrame(frame,columns=col_names)
     n_dna = len(ss[ss.type<3])
     tf = ss[ss.type>2]
@@ -289,7 +289,7 @@ def cluster_table(frame:np.ndarray):
 
     for index in range(1,n_cluster+1):
         cluster_sub_df = ss[ss.cluster == index]
-        coor = np.array(cluster_sub_df[['xco','yco','zco']])
+        coor = np.array(cluster_sub_df[['x','y','z']])
         average = np.average(coor,axis=0)#to center the cluster
         coor_norm = np.subtract(coor,average)#cluster centerd
         std_xyz = np.std(coor_norm,axis=0)#
@@ -420,21 +420,21 @@ def makecircle(r:float=1, rotate:float=0, step:int=100)->pd.DataFrame:
     incre = (2*np.pi/step) #incrementation for desired steps
     angles =  np.arange(-np.pi,np.pi,incre)#len(angles) == step
     #initializing the array
-    xco = np.zeros(len(angles))
-    yco = np.zeros(len(angles))
-    zco = np.zeros(len(angles))
+    x = np.zeros(len(angles))
+    y = np.zeros(len(angles))
+    z = np.zeros(len(angles))
     
     #for every angle a point (or particle) is created
     for i,a in enumerate(angles):
-        xco[i] = r*np.cos(a)*np.sin(rotate)
-        yco[i] = r*np.sin(a)*np.sin(rotate)
-        zco[i] = r*np.cos(rotate)
+        x[i] = r*np.cos(a)*np.sin(rotate)
+        y[i] = r*np.sin(a)*np.sin(rotate)
+        z[i] = r*np.cos(rotate)
         
     coor = pd.DataFrame()#empty DataFrame
     #coordinates are assigned as columns
-    coor['x'] = xco
-    coor['y'] = yco
-    coor['z'] = zco
+    coor['x'] = x
+    coor['y'] = y
+    coor['z'] = z
     
     return coor
 
@@ -501,7 +501,7 @@ def marksurface(arr:np.ndarray)->pd.DataFrame:
         
     
     sphere = np.array(makesphere(r_max,step=step))
-    print(len(sphere))
+    # print(len(sphere))
     # print(f'{len(sphere):.1f}',end='\t')
     blob = pd.DataFrame(arr,columns= ['x','y','z'])
     blo_type = np.zeros(len(arr))#type is surface or not surface (1 or 0)
@@ -519,6 +519,28 @@ def marksurface(arr:np.ndarray)->pd.DataFrame:
     
     return blob
 
+def cluster_surface(frame:pd.DataFrame)-> pd.DataFrame:
+    
+    clusters = frame[frame.cluster>0]
+
+    clusters['surface'] = np.zeros(len(clusters))
+    clusters['id'] = np.arange(len(clusters))
+    maxC = clusters.cluster.max()
+    
+    for i in range(0,int(maxC)):
+        cl = clusters[(clusters.cluster==i+1) & (clusters.type==5)]
+        ids = np.array(cl['id'])
+        xyz = np.array(cl[['x','y','z']])
+        
+        avg_xyz = np.average(xyz,axis=0)
+        xyz_norm = xyz-avg_xyz
+        
+        cl = marksurface(xyz_norm)
+        cl['id'] = ids
+        clusters.surface.iloc[ids] = cl.surface
+
+    return clusters
+
     
 if __name__ == '__main__':
     """
@@ -528,33 +550,24 @@ if __name__ == '__main__':
     """
     
     frame = cluster_single_frame(np.load('small_280_60.npy')[-1])
-    clusters = frame[frame.cluster>0]
-    maxC = clusters.cluster.max()
+
+    clusters = cluster_surface(frame)
+
+
     
-    for i in range(16,int(maxC)):
-        # cl = clusters[(clusters.cluster==i+1) & (clusters.type==5)]
-        cl = clusters[(clusters.cluster==i+1) ]
-    
-    
-        xyz = np.array(cl[['xco','yco','zco']])
-        
-        avg_xyz = np.average(xyz,axis=0)
-        xyz_norm = xyz-avg_xyz
-        
-        cl = marksurface(xyz_norm)
-    
-    print(len(cl[cl.surface==1]))
+    # print(len(cl[cl.surface==1]))
     ax = plt.figure()
     matplotlib.use('agg')
     sns.set(rc = {'figure.figsize':(14,7)})
     sns.set_style(style = 'white')
-    sns.scatterplot(data = cl, x= 'x',y='y',
-                palette='bright',hue='surface',
-                size='z'
+    sns.scatterplot(data = clusters[clusters.type==5], x= 'x',y='y',
+                palette='bright',hue='surface'
+                # size='z'
                 )
     plt.grid(False)
     
-    plt.xlim([-5,5])
-    plt.ylim([-5,5])
+    plt.xlim([-95,95])
+    plt.ylim([-40,40])
+    
+    plt.savefig('280.png',dpi=200)
 
-        
