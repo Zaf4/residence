@@ -1,6 +1,13 @@
 from setuptools import find_packages
 from setuptools import setup
 
+classifiers = [
+  "Development Status :: 3 - Alpha ",
+  "Intended Audience :: Education",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3"
+]
+
 setup(
 	name='residence',
 	version='1.0.0',
