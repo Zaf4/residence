@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import glob
 
+pd.set_option('mode.chained_assignment', None) 
 
 def restate2D(arr1:np.ndarray,arr2:np.ndarray,threshold:float=0.9):
     """ Creates a zeros array by the size of the beads.
@@ -50,7 +51,26 @@ def restate3D(arrPol:np.ndarray,arrMol:np.ndarray, work_title:str = "Computing")
     
     return state_whole.T #formatting for the distribution analysis
 
-def progressbar(step, length, time_elapsed,prefix = "Computing"):
+def progressbar(step:int, length:int, time_elapsed:float,prefix:str = "Computing"):
+    """
+    Shows a progress bar and information on the step and ETA.
+
+    Parameters
+    ----------
+    step : int
+        Current step.
+    length : int
+        Total number of steps.
+    time_elapsed : float
+        Elapsed time.
+    prefix : str, optional
+        Job Name. The default is "Computing".
+
+    Returns
+    -------
+    None.
+
+    """
 
     per = step/time_elapsed #performance
     remaining = length-step	#remaining steps
@@ -393,7 +413,7 @@ def frameit_self(arr_name:str,skip:int=1)->None:
 def frameit_index(arr_name:str,index:int=-1,skip:int=1)->None:
     """
     Create image for the given Frame based on the latest cluster formations.
-    Allows the tracking of movements that formed the clusters and latest frame.
+    Allows the tracking of movements that formed the clusters in the latest frame.
     Saves the images.
 
     Parameters
@@ -611,6 +631,106 @@ def labeledGraph(arr_name:str,index:int=-1,savepng:bool=False)->plt.Axes:
     return ax
 
 
+def add_index(arr):
+    #adding indexes
+    arr_wi = np.zeros([len(arr),4])
+    arr_wi[:,1:] = arr
+    arr_wi[:,0] = np.arange(len(arr))
+    
+    return arr_wi
+
+def find_surface_2d(arr:np.ndarray,projection:np.ndarray,npa:int)->np.ndarray:
+    """
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        cluster array.
+    projection : np.ndarray
+        its projection.
+    npa : int
+        non-projection axis- for xy projection z is npa.
+
+    Returns
+    -------
+    closest_points : np.ndarray
+        closest point for the given projection.
+
+    """
+    #adding indexes
+    closest_points = np.zeros(len(arr))
+    for i,prj in enumerate(projection):
+        co = [1,2,3]
+        co.remove(npa)
+        distance2d = np.sum(np.square(arr[:,co]-prj[co]),axis=1)#distance in 2d
+        partial = arr[distance2d<0.4]#slice of arr that is less than 1 away in 2d
+        axial_dist = partial[:,npa]-prj[npa]#distance in non-projection axis
+        index_in_axial = np.argmin(axial_dist**2)
+        closest_points[i] = partial[index_in_axial,0]
+        
+    # unique_closest = np.unique(closest_points).astype('int16')
+
+
+    return closest_points
+
+
+
+def project2d(arr:np.ndarray)->list:
+    """
+
+    Parameters
+    ----------
+    arr : np.ndarray
+        xyz coordinates of particles.
+
+    Returns
+    -------
+    list
+        list of 6 2d-projection.
+
+    """
+    # arr = add_index(arr)
+    
+    xy_low,xy_high,xz_low = arr.copy(),arr.copy(),arr.copy()
+    xz_high,yz_low,yz_high = arr.copy(),arr.copy(),arr.copy()
+    
+    xi,yi,zi = 1,2,3
+    #xy
+    xy_low[:,zi] = np.min(arr[:,zi])
+    xy_high[:,zi] = np.max(arr[:,zi])
+    #xz
+    xz_low[:,yi] = np.min(arr[:,yi])
+    xz_high[:,yi] = np.max(arr[:,yi])
+    #yz
+    yz_low[:,xi] = np.min(arr[:,xi])
+    yz_high[:,xi] = np.max(arr[:,xi])
+    
+    return [xy_low, xy_high, xz_low, xz_high, yz_low, yz_high]
+
+
+def marksurface_projection(arr:np.ndarray)->pd.DataFrame:
+    arr = add_index(arr)
+    sides = project2d(arr)
+    npas = [3,3,2,2,1,1]
+    
+    #finds all particles that are surface non-unique fashion
+    surface_index = np.zeros([6,len(arr)])
+    for i,npa,side in zip(range(6),npas,sides):
+        surface_index[i] = find_surface_2d(arr, projection=side, npa=npa)
+    
+    #remove the repeats 
+    unique_closest = np.unique(surface_index).astype('int')
+    
+    #initializing and marking the surface particles
+    surf = np.zeros(len(arr))
+    surf[unique_closest] = 1       
+         
+    #creating the relevant DataFrame
+    blob = pd.DataFrame(arr[:,1:],columns=['x','y','z'])
+    blob['surface'] = surf
+    
+    return blob
+
 def makecircle(r:float=1, rotate:float=0, step:int=100)->pd.DataFrame:
     """
 
@@ -733,7 +853,22 @@ def marksurface(arr:np.ndarray)->pd.DataFrame:
     return blob
 
 def cluster_surface(frame:pd.DataFrame)-> pd.DataFrame:
+    """
     
+
+    Parameters
+    ----------
+    frame : pd.DataFrame
+        Frame with particle types and xyz coordinates.
+
+    Returns
+    -------
+    
+        Slice of the DataFrame with protein hinges in clusters.
+
+    """
+    
+    #only protein hinges
     naps = frame[frame.type==5]
     surf_arr = np.zeros(len(naps))
     #naps['surface'] = np.zeros(len(naps))
@@ -751,10 +886,12 @@ def cluster_surface(frame:pd.DataFrame)-> pd.DataFrame:
         cl_surf = marksurface(xyz_norm)
         
         surf_arr[ids] = cl_surf.surface
-        
+    
+    print(marksurface(xyz_norm))
+    print(marksurface_projection(xyz_norm))
     naps['surface'] = surf_arr
 
-    return naps[naps.cluster>0]
+    return naps[naps.cluster>0]#only hinges in clusters
 
 def slice_clusters(fname:str='states.npz',
                    dump_name:str='dump.npy',
@@ -832,12 +969,10 @@ def slice_clusters(fname:str='states.npz',
         surf_slices.append(surf_slice)
         free_slices.append(free_slice)
     return [core_slices,surf_slices,free_slices]
-       
 
-if __name__ == '__main__':
-    pd.set_option('mode.chained_assignment', None) 
-
+def main_work(dur:int=20,sample:int=20,save_loc:str='csv'):
     parts = ['sp_state.npy','ns_state.npy']
+    
     
     path = os.getcwd()
     sepr = '/'
@@ -846,12 +981,15 @@ if __name__ == '__main__':
         
     path_parts = path.split(sepr)
     slice_name = '_'.join(path_parts[-2:])
-    save_loc = sepr.join(path_parts[:-2])+sepr
+    # save_loc = sepr.join(path_parts[:-2])+sepr
 
+    
     for part in parts:
         
         type_slices = slice_clusters(fname='states.npz',
-                                            ignore=1001,
+                                            ignore=900,
+                                            duration=dur,
+                                            slice_num=sample,
                                             part=part)
         
         df = pd.DataFrame()
@@ -864,13 +1002,12 @@ if __name__ == '__main__':
         p_name = part.split('_')[0]
         save_name = f'{save_loc}{slice_name}_{p_name}_slice.csv'
         df.to_csv(save_name,index=False)
+    
+    return
+       
+
+if __name__ == '__main__':
+    main_work(20)
+
+
            
-    # for i in ([0,5,10]):
-    #     ax = plt.figure()
-    #     matplotlib.use('agg')
-    #     sns.set(rc = {'figure.figsize':(10,6)})
-    #     sns.set_style(style = 'white')
-    #     sns.violinplot(data=df[df.columns[i:i+5]],
-    #                    palette='magma')
-        
-    #     plt.savefig(f'{i}.png')
