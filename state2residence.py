@@ -41,12 +41,12 @@ def state2residence(zipname:str='states.npz')->np.ndarray:
 
 def locations():
     
-    home = os.getcwd()
-    if not os.path.exists('npys'):
-        os.mkdir('npys')
-    save_dir = home+'/npys'
-    init = home+'/5X10X'
-    cases = ['/2.80','/3.00','/3.50']
+    home = '/home/gottar'
+    init = home+'/5x10t'
+    save_dir = init+'/csv'
+    if not os.path.exists(save_dir):
+        os.mkdir(save_dir)
+    cases = ['/1.00','/2.80','/3.00','/3.50','/4.00']
     concs = ['/10','/20','/40','/60']
 
     locs,save_names = [],[]
@@ -69,7 +69,7 @@ if __name__ == '__main__':
         start = pf()
         name.replace('.','')
         arr = state2residence(loc+'/states.npz')
-        if len(arr) != size:
+        if len(arr) != size: #size fixing
             arr_fixed = np.zeros(size)
             arr_fixed[:len(arr)] = arr
             df[name] = arr_fixed
